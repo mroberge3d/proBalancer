@@ -1,0 +1,170 @@
+html {
+    font-family: Arial, Helvetica, sans-serif;
+    display: inline-block;
+    text-align: center;
+}
+h1 {
+    font-size: 1.8rem;
+    color: white;
+}
+
+h2 {
+    font-size: 1.2rem;
+    color: blue;
+    background-color:white;
+}
+.topnav {
+    overflow: hidden;
+    background-color: #0A1128;
+}
+body {
+    margin: 0;
+}
+.content {
+    padding: 50px;
+}
+input[type=text] {
+    width: 50%;
+    padding: 12px 20px;
+    margin: 8px 0;
+    box-sizing: content-box;
+}
+.card-grid {
+    max-width: 800px;
+    margin: 0 auto;
+    margin-bottom: 30px;
+    display: grid;
+    grid-gap: 2rem;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+}
+.card {
+    background-color: white;
+    box-shadow: 2px 2px 12px 1px rgba(140,140,140,.5);
+}
+button {
+    color: white;
+    padding: 14px 20px;
+    margin: 8px 0;
+    border: none;
+    cursor: pointer;
+    border-radius: 4px;
+}
+
+.onButton{
+    background-color: #1b8a94;
+}
+
+.offButton{
+    background-color: #5f6c6d;
+}
+
+.connectButton{
+    background-color: #24af37;
+}
+
+.disconnectButton{
+    background-color: #d13a30;
+}
+
+.gray-label {
+    color: #bebebe;
+    font-size: 1rem;
+}
+
+.reading {
+    font-size: 1.8rem;
+}
+
+/* The switch - the box around the slider */
+.switch {
+    font-size: 17px;
+    position: relative;
+    display: inline-block;
+    width: 1.2em;
+    height: 3.3em;
+    
+}
+
+    /* Hide default HTML checkbox */
+    .switch .chk {
+        opacity: 0;
+        width: 0;
+        height: 0;
+    }
+
+.toggle {
+    position: relative;
+    display: inline-block;
+    margin-top: 0.5rem;
+    width: 26px;
+    height: 50px;
+    background-color: red;
+    border-radius: 25px;
+    cursor: pointer;
+    transition: background-color 0.25s ease-in;
+}
+
+    .toggle::after {
+        content: '';
+        position: absolute;
+        top: 26px;
+        left: 2px;
+        width: 22px;
+        height: 22px;
+        background-color: white;
+        border-radius: 50%;
+        transition: all 0.25s ease-out;
+    }
+
+#cb-toggle:checked + .toggle {
+    background-color: green;
+}
+
+    #cb-toggle:checked + .toggle::after {
+        transform: translateY(-24px);
+    }
+
+.hide-me {
+    opacity: 0;
+    height: 0;
+    width: 0;
+}
+
+.led {
+    margin: 20px auto;
+    width: 30px;
+    height: 30px;
+    border-radius: 50%;
+    background-color: rgb(255, 255, 255, 0.25);
+    box-shadow: #000 0 -1px 6px 1px;
+}
+
+.led-red {
+    background-color: #F00;
+    box-shadow: #000 0 -1px 6px 1px, inset #600 0 -1px 8px, #F00 0 3px 11px;
+}
+
+.led-orange {
+    background-color: #FF7000;
+    box-shadow: #000 0 -1px 6px 1px, inset #630 0 -1px 8px, #FF7000 0 3px 11px;
+}
+
+.led-yellow {
+    background-color: #FF0;
+    box-shadow: #000 0 -1px 6px 1px, inset #660 0 -1px 8px, #FF0 0 3px 11px;
+}
+
+.led-green {
+    background-color: #80FF00;
+    box-shadow: #000 0 -1px 6px 1px, inset #460 0 -1px 8px, #80FF00 0 3px 11px;
+}
+
+.led-green-off {
+    background-color: #478f2e;
+    box-shadow: #000 0 -1px 6px 1px, inset #460 0 -1px 8px, #801F00 0 3px 11px;
+}
+
+.led-blue {
+    background-color: #06F;
+    box-shadow: #000 0 -1px 6px 1px, inset #006 0 -1px 8px, #06F 0 3px 11px;
+}

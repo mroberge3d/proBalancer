@@ -1,0 +1,437 @@
+
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Équilibreur d'hélice'</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="icon" type="image/png" href="favicon.ico">
+    <link rel="stylesheet" type="text/css" href="style.css">
+    <script src="http://cdn.rawgit.com/Mikhus/canvas-gauges/gh-pages/download/2.1.7/all/gauge.min.js"></script>
+    <meta charset="UTF-8">
+</head>
+<body>
+    <div class="topnav">
+        <h1>Equilibreur d'hélice</h1>
+    </div>
+    <div class="content">
+        <div class="card-grid">
+            <div class="card">
+                <p>
+                    <button id="connectBleButton" class="connectButton"> Connect to BLE Device</button>
+                    <button id="disconnectBleButton" class="disconnectButton"> Disconnect BLE Device</button>
+                </p>
+                <p class="gray-label">BLE state: <strong><span id="bleState" style="color:#d13a30;">Disconnected</span></strong></p>
+            </div>
+        </div>
+        <div class="card-grid">
+            <div class="card">
+                <table>
+                    <tr>
+                        <td width="500px">
+                            <h2>Vitesse (RPM)</h2>
+                            <canvas id="gauge-RPM"></canvas>
+                        </td>
+                        <td valign="top">
+                            <h2>Démarrer le moteur</h2>
+                            <label class="switch">
+                                <input id="cb-toggle" type="checkbox" class="hide-me">
+                                <label for="cb-toggle" class="toggle"></label>
+                            </label>
+                            <h2>Ajuster la vitesse</h2>
+                            <p>
+                                <a href="#" id="speed_up" class="SpeedUpBtn"><img src="up-32.png" /></a>
+                            </p>
+                            <p>
+                                <a href="#" id="speed_down" class="SpeedDownBtn"><img src="down-32.png" /></a>
+                            </p>
+                            <p class="reading"><span id="vitesse"></span></p>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td colspan="2">
+                            <div class="led led-green-off" id="led"></div>
+                        </td>
+                    </tr>
+                </table>
+            </div>
+
+         </div>
+    <div class="card-grid">
+        <div class="card">
+            <canvas id="gauge-compass"></canvas>
+            <table>
+                <tr>
+                    <td width="500px">
+                    </td>
+                    <td>
+ <!--                       <canvas id="gauge-accel"></canvas> -->
+                    </td>
+                </tr>
+            </table>
+        </div>
+    </div>
+	<div class="card-grid">
+	    <div class="card">
+		<h2>Message</h2>
+		<p class="reading"><span id="statusContainer"></span></p>
+	    </div>
+	</div>
+    </div>
+
+</body>
+<script>
+    // DOM Elements
+    const connectButton = document.getElementById('connectBleButton');
+    const disconnectButton = document.getElementById('disconnectBleButton');
+    const startUp = document.getElementById('cb-toggle');
+    const retrievedValue = document.getElementById('gauge-RPM');
+    const bleStateContainer = document.getElementById('bleState');
+    const timestampContainer = document.getElementById('timestamp');
+    const retrievedMessage = document.getElementById('statusContainer');
+    const speedUp = document.getElementById('speed_up');
+    const speedDown = document.getElementById('speed_down');
+    const retrievedvitesse = document.getElementById('vitesse');
+    const Led = document.getElementById('led');
+    //Define BLE Device Specs
+    var deviceName ='ESP32';
+    var bleService = '19b10000-e8f2-537e-4f6c-d104768a1214';
+    var RPMCharacteristic          = '19b10001-e8f2-537e-4f6c-d104768a1214';
+    var StartUpCharacteristic      = '19b10002-e8f2-537e-4f6c-d104768a1214';
+    var STATUSCharacteristic       = '19b10003-e8f2-537e-4f6c-d104768a1214';
+    var SPEED_CHARACTERISTIC       = '19b10004-e8f2-537e-4f6c-d104768a1214';
+    var COMPASS_CHARACTERISTIC     = '19b10005-e8f2-537e-4f6c-d104768a1214';
+    var NEEDLE_CHARACTERISTIC      = '19b10006-e8f2-537e-4f6c-d104768a1214';
+    var LED_CHARACTERISTIC         = '19b10007-e8f2-537e-4f6c-d104768a1214';
+
+    //Global Variables to Handle Bluetooth
+    var bleServer;
+    var bleServiceFound;
+    var RPMCharacteristicFound;
+    var StartUpCharacteristicFound;
+    var STATUSCharacteristicFound;
+    var SPEEDCharacteristicFound;
+    var CompassCharacteristicFound;
+    var NeedleCharacteristicFound;
+    var LedCharacteristicFound;
+
+    // Connect Button (search for BLE Devices only if BLE is available)
+    connectButton.addEventListener('click', (event) => {
+        if (isWebBluetoothEnabled()){
+            connectToDevice();
+        }
+    });
+
+    // Disconnect Button
+    disconnectButton.addEventListener('click', disconnectDevice);
+
+    // Write to the ESP32 StartUp switch Characteristic
+    startUp.addEventListener('click', () => writeOnCharacteristic(startUp.checked));
+    speedUp.addEventListener('click', () => changeVitesse(1));
+    speedDown.addEventListener('click', () => changeVitesse(-1));
+
+    // Check if BLE is available in your Browser
+    function isWebBluetoothEnabled() {
+        if (!navigator.bluetooth) {
+            console.log('Web Bluetooth API is not available in this browser!');
+            bleStateContainer.innerHTML = "Web Bluetooth API is not available in this browser/device!";
+            return false
+        }
+        console.log('Web Bluetooth API supported in this browser.');
+        return true
+    }
+
+    // Connect to BLE Device and Enable Notifications
+    function connectToDevice(){
+       console.log('Initializing Bluetooth...');
+        navigator.bluetooth.requestDevice({
+            filters: [{name: deviceName}],
+            optionalServices: [bleService]
+        })
+        .then(device => {
+            console.log('Device Selected:', device.name);
+            bleStateContainer.innerHTML = 'Connected to device ' + device.name;
+            device.addEventListener('gattservicedisconnected', onDisconnected);
+            return device.gatt.connect();
+        })
+        .then(gattServer =>{
+            bleServer = gattServer;
+            console.log("Connected to GATT Server");
+            return bleServer.getPrimaryService(bleService);
+        })
+        .then(service => {
+            bleServiceFound = service;
+            console.log("Service discovered:", service.uuid);
+	    return service.getCharacteristics()
+        })
+
+	.then(characteristics => {
+        console.log("Characteristic discovered:", characteristics.map(c => c.uuid).join('\n' + ' '.repeat(10)));;
+
+        RPMCharacteristicFound = characteristics[0];
+        characteristics[0].addEventListener('characteristicvaluechanged', RPMCharacteristicChange);
+        characteristics[0].startNotifications();
+        StartUpCharacteristicFound = characteristics[1];
+        characteristics[1].addEventListener('characteristicvaluechanged', StartUpCharateristicChange);
+        characteristics[1].startNotifications();
+        STATUSCharacteristicFound = characteristics[2];
+        characteristics[2].addEventListener('characteristicvaluechanged', STATUSCharacteristicChange);
+        characteristics[2].startNotifications();
+        SPEEDCharacteristicFound = characteristics[3];
+        characteristics[3].addEventListener('characteristicvaluechanged', vitesseCharacteristicChange);
+        characteristics[3].startNotifications();
+        CompassCharacteristicFound = characteristics[4];
+        characteristics[4].addEventListener('characteristicvaluechanged', compassCharacteristicChange);
+        characteristics[4].startNotifications();
+        NeedleCharacteristicFound = characteristics[5];
+        characteristics[5].addEventListener('characteristicvaluechanged', needleCharacteristicChange);
+        characteristics[5].startNotifications();
+        LedCharacteristicFound = characteristics[5];
+        characteristics[6].addEventListener('characteristicvaluechanged', LedCharacteristicChange);
+        characteristics[6].startNotifications();
+        bleStateContainer.style.color = "#24af37";
+       console.log("Notifications Started.");
+	})
+        .then(value => {
+            console.log("Read value: ", value);
+            const decodedValue = new TextDecoder().decode(value);
+            console.log("Decoded value: ", decodedValue);
+            retrievedValue.innerHTML = decodedValue;
+        })
+        .catch(error => {
+            console.log('Error: ', error);
+        })
+    }
+
+    function onDisconnected(event){
+        console.log('Device Disconnected:', event.target.device.name);
+        bleStateContainer.innerHTML = "Device disconnected";
+        bleStateContainer.style.color = "#d13a30";
+        StartUp.checked = false;
+        connectToDevice();
+    }
+
+    function RPMCharacteristicChange(event){
+        const newValueReceived = new TextDecoder().decode(event.target.value);
+//        console.log("Characteristic RPM changed: ", newValueReceived);
+        gaugeRPM.value = newValueReceived;
+    }   
+
+    function compassCharacteristicChange(event) {
+        const newValueReceived = new TextDecoder().decode(event.target.value);
+//        console.log("Nouvel angle recu: ", newValueReceived);
+        gaugeCompass.value = newValueReceived;
+    }
+
+    function needleCharacteristicChange(event) {
+        const newValueReceived = new TextDecoder().decode(event.target.value);
+//        console.log("Acceleration : ", newValueReceived);
+        gaugeCompass.update({
+            needleEnd: newValueReceived
+        });
+    }
+
+    function STATUSCharacteristicChange(event){
+        const newMessageReceived = new TextDecoder().decode(event.target.value);
+//        console.log("Characteristic STATUS changed: ", newMessageReceived);
+        retrievedMessage.innerHTML = newMessageReceived;
+    }
+
+    function StartUpCharateristicChange(event) {
+        const newStartUpReceived = new TextDecoder().decode(event.target.value);
+        console.log("Characteristic StartUp changed: ", newStartUpReceived);
+        if (newStartUpReceived == "0") {
+            startUp.checked = false;
+            led.style.display = "block";
+        } else {
+            startUp.checked = true;
+            led.style.display = "none";
+        }
+        
+    }
+
+    function LedCharacteristicChange(event) {
+        const newLedReceived = new TextDecoder().decode(event.target.value);
+ //       console.log("Characteristic LED changed: ", newLedReceived);
+        if (newLedReceived == "1") {
+            Led.classList.replace('led-green-off', 'led-green');
+        } else {
+            Led.classList.replace('led-green', 'led-green-off');
+        }
+    }
+
+    function vitesseCharacteristicChange(event) {
+        const newVitesse = new TextDecoder().decode(event.target.value);
+//        console.log("Characteristic vitesse changed: ", newVitesse);
+        retrievedvitesse.innerHTML = newVitesse;
+    }
+
+    function changeVitesse(value) {
+        let newVitesse = +retrievedvitesse.innerHTML;
+//        console.log("Vitesse affiche: ", newVitesse);
+//        console.log("valeur a changer: ", value);
+        newVitesse += value;
+//        console.log("Nouvelle vitesse: ", newVitesse);
+        retrievedvitesse.innerHTML = newVitesse;
+        if (bleServer && bleServer.connected) {
+            bleServiceFound.getCharacteristic(SPEED_CHARACTERISTIC)
+                .then(characteristic => {
+//                    console.log("Found the speed characteristic: ", characteristic.uuid);
+                    const data = new Uint8Array([newVitesse]);
+                    return characteristic.writeValue(data);
+                })
+                 .catch(error => {
+                    console.log("Error writing to the speed characteristic: ", error);
+                });
+        } else {
+            console.log("Bluetooth is not connected. Cannot write to characteristic.")
+            window.alert("Bluetooth is not connected. Cannot write to characteristic. \n Connect to BLE first!")
+        }
+}
+
+    function writeOnCharacteristic(value){
+        if (bleServer && bleServer.connected) {
+            bleServiceFound.getCharacteristic(StartUpCharacteristic)
+            .then(characteristic => {
+//                console.log("Found the StartUp characteristic: ", characteristic.uuid);
+                const data = new Uint8Array([value]);
+                return characteristic.writeValue(data);
+            })
+//            .then(() => {
+//                latestValueSent.innerHTML = value;
+//                console.log("Value written to StartUpcharacteristic:", value);
+//            })
+            .catch(error => {
+                console.log("Error writing to the StartUp characteristic: ", error);
+            });
+        } else {
+            console.log ("Bluetooth is not connected. Cannot write to characteristic.")
+            window.alert("Bluetooth is not connected. Cannot write to characteristic. \n Connect to BLE first!")
+        }
+    }
+
+    function disconnectDevice() {
+        console.log("Disconnect Device.");
+        if (bleServer && bleServer.connected) {
+            if (RPMCharacteristicFound) {
+                RPMCharacteristicFound.stopNotifications()
+                    .then(() => {
+                        console.log("Notifications Stopped");
+                        return bleServer.disconnect();
+                    })
+                    .then(() => {
+                        console.log("Device Disconnected");
+                        bleStateContainer.innerHTML = "Device Disconnected";
+                        bleStateContainer.style.color = "#d13a30";
+
+                    })
+                    .catch(error => {
+                        console.log("An error occurred:", error);
+                    });
+            } else {
+                console.log("No characteristic found to disconnect.");
+            }
+        } else {
+            // Throw an error if Bluetooth is not connected
+            console.error("Bluetooth is not connected.");
+            window.alert("Bluetooth is not connected.")
+        }
+    }
+
+    function getDateTime() {
+        var currentdate = new Date();
+        var day = ("00" + currentdate.getDate()).slice(-2); // Convert day to string and slice
+        var month = ("00" + (currentdate.getMonth() + 1)).slice(-2);
+        var year = currentdate.getFullYear();
+        var hours = ("00" + currentdate.getHours()).slice(-2);
+        var minutes = ("00" + currentdate.getMinutes()).slice(-2);
+        var seconds = ("00" + currentdate.getSeconds()).slice(-2);
+
+        var datetime = day + "/" + month + "/" + year + " at " + hours + ":" + minutes + ":" + seconds;
+        return datetime;
+    }
+
+    var gaugeRPM = new RadialGauge({
+  	renderTo: 'gauge-RPM',
+  	width: 300,
+	height: 300,
+  	units: "RPM",
+  	minValue: 0,
+  	maxValue: 6000,
+  	colorValueBoxRect: "#049faa",
+  	colorValueBoxRectEnd: "#049faa",
+  	colorValueBoxBackground: "#f1fbfc",
+    valueBox: true,
+  	valueInt: 5,
+	valueDec: 0,
+  	majorTicks: ["0","1","2","3","4","5","6"],
+  	minorTicks: 4,
+  	strokeTicks: true,
+  	highlights: [
+      	    {
+          	"from": 3000,
+          	"to": 6000,
+          	"color": "#03C0C1"
+      	    }
+  	],
+  	colorPlate: "#fff",
+  	borderShadowWidth: 2,
+  	borders: false,
+  	needleType: "arrow",
+  	colorNeedle: "#007F80",
+  	colorNeedleEnd: "#007F80",
+  	needleWidth: 5,
+  	needleCircleSize: 5,
+  	colorNeedleCircleOuter: "#007F80",
+  	needleCircleOuter: true,
+  	needleCircleInner: false,
+  	animationDuration: 100,
+  	animationRule: "linear"
+    }).draw();
+
+    var gaugeCompass = new RadialGauge({
+        renderTo: 'gauge-compass',
+        width: 300,
+        height: 300,
+        ticksAngle: 360,
+        startAngle: 180,
+        units: "Degre",
+        minValue: 0,
+        maxValue: 360,
+        colorValueBoxRect: "#049faa",
+        colorValueBoxRectEnd: "#049faa",
+        colorValueBoxBackground: "#f1fbfc",
+        valueBox: false,
+        majorTicks: ["0", "30", "60", "90", "120", "150", "180", "210", "240", "270", "300", "330", "0"],
+        minorTicks: 3,
+        strokeTicks: true,
+        highlights: [
+            {
+                "from": 0,
+                "to": 0,
+                "color": "#03C0C1"
+            }
+        ],
+        colorPlate: "#fff",
+        borderShadowWidth: 2,
+        needleStart: 0,
+        borders: false,
+        needleType: "arrow",
+        colorNeedle: "#007F80",
+        colorNeedleEnd: "#007F80",
+        needleWidth: 5,
+        needleEnd: 90,
+        needleCircleSize: 5,
+        colorNeedleCircleOuter: "#007F80",
+        needleCircleOuter: true,
+        needleCircleInner: false,
+        animationDuration: 100,
+        animationRule: "linear"
+    }).draw();
+
+
+
+ 
+</script>
+
+</html>
